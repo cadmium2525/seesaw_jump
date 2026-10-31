@@ -49,5 +49,5 @@ export const WORLD = {
   moveSpeed: 17,
   treeX: 8.4,
   treeHeight: 23,
-  assistCutoff: 5,
+  assistCutoff: 3,
 } as const;

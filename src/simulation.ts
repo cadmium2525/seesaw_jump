@@ -165,8 +165,8 @@ export class GameSimulation {
   private updatePrediction(): void {
     const state = this.state;
     const person = state.people[state.activePerson];
-    // Predict against the board's settled receiving-side height. The view can
-    // display this data only while assistVisible is true.
+    // Predict against the board's settled receiving-side height for assist
+    // timing and replay diagnostics.
     const targetHeight = WORLD.boardY + SEAT_X * Math.sin(REST_ANGLE);
     const discriminant = Math.max(0, person.vy * person.vy + 2 * WORLD.gravity * (person.y - targetHeight));
     state.landingIn = Math.max(0, (person.vy + Math.sqrt(discriminant)) / WORLD.gravity);

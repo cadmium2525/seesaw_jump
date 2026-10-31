@@ -15,7 +15,7 @@ const ui = {
   height: element('height'), runBest: element('run-best'), best: element('best'),
   catches: element('catch-count'), target: element('target-side'), direction: element('flight-direction'),
   assist: element('assist'), assistTime: element('assist-time'), board: element('board-marker'),
-  landing: element('landing-marker'), blind: element('blind-note'),
+  blind: element('blind-note'),
   feedback: element('feedback'), flightLabel: element('flight-label'),
   movement: element('movement'), left: element<HTMLButtonElement>('left-btn'), right: element<HTMLButtonElement>('right-btn'),
   pauseButton: element<HTMLButtonElement>('pause-btn'), pause: element('pause-overlay'),
@@ -174,7 +174,6 @@ function updateInterface() {
   if (state.assistVisible && state.phase === 'playing') {
     const position = (x: number) => `${Math.max(0, Math.min(100, (x / (WORLD.halfWidth + WORLD.boardHalfLength) + 1) * 50))}%`;
     ui.board.style.left = position(state.boardX);
-    ui.landing.style.left = position(state.landingX);
     ui.assistTime.textContent = `着地まで ${state.landingIn.toFixed(1)} s`;
   }
   ui.flightLabel.textContent = state.catches === 0 ? '木の上から、最初のジャンプ。' : active.vy > 1 ? 'のぼれ、のぼれ。' : active.vy >= -1 ? '空のてっぺんで、ひといき。' : '落ちてくるよ。シーソーを動かして。';

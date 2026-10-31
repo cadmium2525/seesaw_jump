@@ -58,17 +58,23 @@ test('edge catches launch higher than catches near the pivot', () => {
   assert.ok(launchAt(4.6) > launchAt(1.0));
 });
 
-test('the location assist disappears at five seconds and stays hidden until the next catch', () => {
+test('the seesaw position assist remains visible at four seconds, disappears at three, and stays hidden', () => {
   const sim = firstCatch(15);
-  assert.ok(sim.state.landingIn > 5);
+  assert.ok(sim.state.landingIn > 4);
   assert.equal(sim.state.assistVisible, true);
   let hidden = false;
+  let sawFourSeconds = false;
   while (sim.state.phase === 'playing') {
     sim.step(DT, { move: 0 });
-    if (sim.state.landingIn <= 5) hidden = true;
+    if (sim.state.landingIn <= 4 && sim.state.landingIn > 3.9) {
+      sawFourSeconds = true;
+      assert.equal(sim.state.assistVisible, true, 'The assist must remain visible four seconds before landing.');
+    }
+    if (sim.state.landingIn <= 3) hidden = true;
     if (hidden) assert.equal(sim.state.assistVisible, false);
     else assert.equal(sim.state.assistVisible, true);
   }
+  assert.ok(sawFourSeconds);
   assert.ok(hidden);
 });
 
