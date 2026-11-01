@@ -2,6 +2,8 @@ import './style.css';
 import { GameSimulation } from './simulation';
 import { GameWorld } from './world';
 import { GameAudio } from './audio';
+import { createResultCard, type ResultCardData } from './result-card';
+import { buildShareText, shareResult } from './result-sharing';
 import { WORLD, type GameEvent } from './types';
 
 const element = <T extends HTMLElement = HTMLElement>(id: string) => {
@@ -21,6 +23,10 @@ const ui = {
   pauseButton: element<HTMLButtonElement>('pause-btn'), pause: element('pause-overlay'),
   over: element('gameover-overlay'), help: element<HTMLDialogElement>('help-dialog'),
   error: element('error-overlay'), sound: element<HTMLButtonElement>('sound-btn'),
+  resultImage: element<HTMLImageElement>('result-card-image'),
+  cardPlaceholder: element('result-card-placeholder'), resultFallback: element('result-score-fallback'),
+  shareButton: element<HTMLButtonElement>('share-result-btn'), shareStatus: element('share-status'),
+  captionDetails: element<HTMLDetailsElement>('share-caption-details'), caption: element<HTMLTextAreaElement>('share-caption'),
 };
 
 const storage = {
@@ -44,6 +50,119 @@ let world: GameWorld;
 let contextLost = false;
 let helpPausedGame = false;
 let lastSaveTime = 0;
+let resultVersion = 0;
+let sharing = false;
+let forceShareFallback = false;
+let preparedResult: { file: File; previewUrl: string; text: string } | null = null;
+
+function resetResultSharing() {
+  resultVersion++;
+  if (preparedResult) URL.revokeObjectURL(preparedResult.previewUrl);
+  preparedResult = null;
+  sharing = false;
+  forceShareFallback = false;
+  ui.shareButton.disabled = true;
+  ui.shareButton.removeAttribute('aria-busy');
+  ui.resultImage.hidden = true;
+  ui.resultImage.removeAttribute('src');
+  ui.resultFallback.hidden = true;
+  ui.cardPlaceholder.hidden = false;
+  ui.cardPlaceholder.textContent = 'カード画像を準備しています…';
+  ui.captionDetails.open = false;
+  ui.captionDetails.hidden = true;
+  ui.caption.value = '';
+  ui.shareStatus.textContent = 'カード画像と、タグ・ゲームURL付きの投稿文を共有できます。';
+}
+
+function prepareResultSharing(data: ResultCardData) {
+  resetResultSharing();
+  const version = resultVersion;
+  const text = buildShareText(data);
+  ui.caption.value = text;
+  ui.resultImage.alt = `SEESAWの結果。最高到達点 ${data.height.toFixed(1)} m、キャッチ ${data.catches} 回、自己ベスト ${data.best.toFixed(1)} m${data.newRecord ? '。自己ベスト更新！' : '。'}`;
+  // Generate before the share click so native sharing keeps its user gesture.
+  void createResultCard(data).then(card => {
+    if (version !== resultVersion || simulation.state.phase !== 'gameover') {
+      URL.revokeObjectURL(card.previewUrl);
+      return;
+    }
+    preparedResult = {
+      file: new File([card.blob], `seesaw-${data.height.toFixed(1)}m.png`, { type: 'image/png' }),
+      previewUrl: card.previewUrl,
+      text,
+    };
+    ui.resultImage.src = card.previewUrl;
+    ui.resultImage.hidden = false;
+    ui.cardPlaceholder.hidden = true;
+    ui.captionDetails.hidden = false;
+    ui.shareButton.disabled = false;
+  }).catch(error => {
+    if (version !== resultVersion) return;
+    console.error('Could not prepare result card', error);
+    ui.cardPlaceholder.hidden = true;
+    ui.resultFallback.hidden = false;
+    ui.captionDetails.hidden = false;
+    ui.shareStatus.textContent = 'カード画像を作成できませんでした。再読み込みしてお試しください。投稿文は下の欄からコピーできます。';
+  });
+}
+
+async function shareCurrentResult() {
+  if (!preparedResult || sharing) return;
+  const version = resultVersion;
+  const card = preparedResult;
+  const requireCurrentResult = () => {
+    if (version !== resultVersion) throw new DOMException('This result is no longer active', 'AbortError');
+  };
+  sharing = true;
+  ui.shareButton.disabled = true;
+  ui.shareButton.setAttribute('aria-busy', 'true');
+  ui.shareStatus.textContent = '共有の準備をしています…';
+  try {
+    const outcome = await shareResult(card.file, card.text, {
+      canShare: !forceShareFallback && typeof navigator.canShare === 'function' ? data => navigator.canShare(data) : undefined,
+      share: typeof navigator.share === 'function' ? data => navigator.share(data) : undefined,
+      copyText: text => {
+        requireCurrentResult();
+        return navigator.clipboard?.writeText(text) ?? Promise.reject(new Error('Clipboard is unavailable'));
+      },
+      download: file => {
+        requireCurrentResult();
+        const link = document.createElement('a');
+        link.href = card.previewUrl;
+        link.download = file.name;
+        document.body.append(link);
+        link.click();
+        link.remove();
+      },
+    });
+    if (version !== resultVersion) return;
+    if (outcome.kind === 'shared') {
+      ui.shareStatus.textContent = '共有先を開きました。投稿文が入らない場合は、下の文章をコピーして使えます。';
+    } else if (outcome.kind === 'cancelled') {
+      ui.shareStatus.textContent = '共有をキャンセルしました。もう一度押すと共有先を選べます。';
+    } else {
+      forceShareFallback = true;
+      ui.shareStatus.textContent = outcome.copied
+        ? '画像の保存を開始し、投稿文をコピーしました。SNSで画像を添付して貼り付けてください。'
+        : '画像の保存を開始しました。下の投稿文を選択してコピーし、SNSで画像を添付してください。';
+      ui.captionDetails.open = true;
+    }
+    ui.shareStatus.scrollIntoView({ block: 'nearest' });
+  } catch (error) {
+    if (version !== resultVersion) return;
+    console.error('Could not share result', error);
+    forceShareFallback = true;
+    ui.captionDetails.open = true;
+    ui.shareStatus.textContent = '共有を開けませんでした。もう一度「結果を共有」を押すと、画像の保存と投稿文のコピーを試します。画像は長押し・右クリックでも保存できます。';
+    ui.shareStatus.scrollIntoView({ block: 'nearest' });
+  } finally {
+    if (version === resultVersion) {
+      sharing = false;
+      ui.shareButton.disabled = false;
+      ui.shareButton.removeAttribute('aria-busy');
+    }
+  }
+}
 
 function saveBest() {
   storage.set('seesaw-best-v1', personalBest.toFixed(1));
@@ -73,6 +192,7 @@ function clearInput() {
 
 function startGame() {
   if (contextLost || ui.help.open) return;
+  resetResultSharing();
   clearInput();
   bestAtStart = personalBest;
   // Each new run gets its own reproducible breeze pattern.
@@ -109,6 +229,7 @@ function togglePause() {
 }
 
 function goHome() {
+  resetResultSharing();
   clearInput();
   simulation.reset();
   accumulator = 0;
@@ -141,6 +262,12 @@ function handleEvent(event: GameEvent) {
     element('result-best').textContent = personalBest.toFixed(1) + ' m';
     element('new-record').hidden = simulation.state.maxHeight <= bestAtStart;
     element('result-message').textContent = simulation.state.catches === 0 ? 'まずは、木から落ちてくる人を右側でキャッチ。' : 'いい旅だった。次は、もっと高くいける。';
+    prepareResultSharing({
+      height: simulation.state.maxHeight,
+      catches: simulation.state.catches,
+      best: personalBest,
+      newRecord: simulation.state.maxHeight > bestAtStart,
+    });
   }
 }
 
@@ -204,6 +331,7 @@ element('retry-btn').addEventListener('click', startGame);
 element('pause-retry').addEventListener('click', startGame);
 element('resume-btn').addEventListener('click', resumeGame);
 element('home-btn').addEventListener('click', goHome);
+ui.shareButton.addEventListener('click', () => { void shareCurrentResult(); });
 element('reload-btn').addEventListener('click', () => window.location.reload());
 ui.pauseButton.addEventListener('click', togglePause);
 ui.sound.addEventListener('click', toggleSound);
@@ -229,6 +357,8 @@ ui.help.addEventListener('close', () => {
 
 window.addEventListener('keydown', event => {
   if (ui.help.open || !ui.error.hidden) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.target instanceof Element && event.target.closest('input, textarea, select, summary, [contenteditable="true"]')) return;
   const key = event.code;
   const isButton = event.target instanceof HTMLElement && ['BUTTON', 'A'].includes(event.target.tagName);
   if (['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight'].includes(key)) {

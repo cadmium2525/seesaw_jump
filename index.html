@@ -82,7 +82,37 @@
         </div>
 
         <div id="gameover-overlay" class="overlay" hidden>
-          <section class="result-card" aria-labelledby="result-title"><div class="eyebrow">A GOOD LITTLE FLIGHT</div><h2 id="result-title">もう一回、空へ。</h2><p id="result-message">次は、もっと高くいける。</p><div class="result-score"><span id="result-height">0.0</span><small>m</small></div><div id="new-record" class="new-record" hidden>↗ NEW PERSONAL BEST</div><div class="result-stats"><span>キャッチ <b id="result-catches">0</b> 回</span><span>自己ベスト <b id="result-best">0.0 m</b></span></div><button id="retry-btn" class="primary-button">もう一回とぶ <span>↗</span></button><button id="home-btn" class="text-button">タイトルへもどる</button></section>
+          <section class="result-card result-screen" aria-labelledby="result-title">
+            <div class="result-content">
+            <div class="eyebrow">YOUR FLIGHT CARD</div>
+            <h2 id="result-title">もう一回、空へ。</h2>
+            <p id="result-message">次は、もっと高くいける。</p>
+            <figure class="score-card-preview">
+              <img id="result-card-image" width="1200" height="900" alt="今回の結果カード" hidden />
+              <div id="result-card-placeholder" class="card-placeholder" role="status">カード画像を準備しています…</div>
+            </figure>
+            <div id="result-score-fallback" hidden>
+              <div class="result-score"><span id="result-height">0.0</span><small>m</small></div>
+              <div id="new-record" class="new-record" hidden>↗ NEW PERSONAL BEST</div>
+              <div class="result-stats"><span>キャッチ <b id="result-catches">0</b> 回</span><span>自己ベスト <b id="result-best">0.0 m</b></span></div>
+            </div>
+            <p id="share-status" class="share-status" role="status" aria-live="polite">カード画像と、タグ・ゲームURL付きの投稿文を共有できます。</p>
+            <details id="share-caption-details" class="share-caption-details" hidden>
+              <summary>投稿文を確認・コピー</summary>
+              <label for="share-caption">SNSに添える投稿文</label>
+              <textarea id="share-caption" readonly rows="5" spellcheck="false"></textarea>
+              <p>画像は長押し・右クリックから保存することもできます。投稿内容は共有先で確認してください。</p>
+            </details>
+            </div>
+            <div class="result-actions">
+              <button id="share-result-btn" class="share-button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M5 13v7h14v-7"/></svg>
+                結果を共有
+              </button>
+              <button id="retry-btn" class="primary-button">もう一回 <span>↗</span></button>
+              <button id="home-btn" class="text-button">タイトルへ</button>
+            </div>
+          </section>
         </div>
         <div id="error-overlay" class="overlay" hidden><section class="result-card"><div class="eyebrow">A LITTLE TECHNICAL HICCUP</div><h2>空が開けませんでした。</h2><p id="error-message">WebGLに対応したブラウザで開いてください。</p><button id="reload-btn" class="primary-button">再読み込み <span>↻</span></button></section></div>
       </main>
